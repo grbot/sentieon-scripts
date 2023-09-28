@@ -1,10 +1,28 @@
+#!/usr/bin/env nextflow
+nextflow.enable.dsl=2
+
+
+// Get params
+
+ref = Channel.fromPath(params.ref).toList()
+dbsnp = Channel.fromPath(params.dbsnp).toList()
+sentieon_license = params.sentieon_license
+sentieon_libjemalloc = params.sentieon_libjemalloc
+sentieon_bam_option = params.sentieon_bam_option
+sentieon_threads = params.sentieon_threads
+sentieon_dnascope_model = params.sentieon_dnascope_model
+pcr_free = params.pcr_free
+
+
 process align {
-    tag { "${params.project_name}.${params.protocol}.align.${name}" }
-    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    tag { "${params.project_name}.${sample_id}.align" }
+    memory { 64.GB * task.attempt }
+    cpus { "${sentieon_threads}" }
+    publishDir "${params.out_dir}", mode: 'copy', overwrite: false
     label 'sentieon'
 
     input:
-        set val(sample_id), file(fastq_r1_file), file(fastq_r2_file), val(flowcell), val(lane)
+        tuple val(sample_id), path(fastq_r1_file), path(fastq_r2_file), val(flowcell), val(lane)
         file ref
         val sentieon_license
         val sentieon_libjemalloc
@@ -12,18 +30,18 @@ process align {
         val sentieon_threads
 
     output:
-        set val("$sample_id"), file("${sample_id}.bam"), file("${sample_id}.bam.bai")  into raw_bam
+        tuple val("$sample_id"), file("${sample_id}.bam"), file("${sample_id}.bam.bai"), emit: raw_bam
 
     script:
         readgroup_info="@RG\\tID:$flowcell.$lane\\tLB:LIBA\\tSM:$sample_id\\tPL:Illumina"
-            
+
         if(lane == "0") {
             sample_id = "$sample_id"
         } else {
             sample_id = "$sample_id-${flowcell}.${lane}"
         }
-                        
-        """
+                         
+        """   
         export SENTIEON_LICENSE=${sentieon_license}
         export LD_PRELOAD=${sentieon_libjemalloc}        
         sentieon bwa mem \
@@ -36,11 +54,12 @@ process align {
         ${fastq_r2_file} | \
         sentieon util sort \
         ${sentieon_bam_option} \
-        -t ${sentieon_threads} \
         -r ${ref} \
-        -o  ${sample_id}.bam \
+        -o ${sample_id}.bam \
+        -t ${sentieon_threads} \
         --sam2bam \
         -i -
+
         """ 
 }
 
@@ -50,13 +69,13 @@ process locus_collector {
     label 'sentieon'
 
     input:
-        set val(sample_id), file(bam_file), file(bam_file_index)
+        tuple val(sample_id), file(bam_file), file(bam_file_index)
         val sentieon_license
         val sentieon_libjemalloc
         val sentieon_threads
   
     output:
-        set val(sample_id), file("${sample_id}.score.txt")  into score_info
+        tuple val(sample_id), file("${sample_id}.score.txt"), emit: score_info
 
     script:
         """
@@ -76,13 +95,13 @@ process dedup {
     label 'sentieon'
 
     input:
-        set val(sample_id), file(bam_file), file(bam_file_index), file(score_info)
+        tuple val(sample_id), file(bam_file), file(bam_file_index), file(score_info)
         val sentieon_license
         val sentieon_libjemalloc
         val sentieon_threads
   
     output:
-        set val("$sample_id"), file("${sample_id}.dedup.bam") into dedup_bam 
+        tuple val("$sample_id"), file("${sample_id}.dedup.bam"), emit: dedup_bam 
 
     script:
         """
@@ -105,7 +124,7 @@ process call {
     label 'sentieon'
 
     input:
-    set val(sample_id), file(bam_file)
+    tuple val(sample_id), file(bam_file)
     file ref
     file dbsnp
     file sentieon_dnascope_model
@@ -115,7 +134,7 @@ process call {
     val pcr_free
   
     output:
-    set val($sample_id), file("${sample_id}.dedup.vcf.gz") into call_vcf 
+    tuple val($sample_id), file("${sample_id}.dedup.vcf.gz"), emit: call_vcf 
 
     script:
         """
@@ -147,7 +166,7 @@ process call {
 
 process model {
     input:
-        set val(sample_id), file(vcf_file)
+        tuple val(sample_id), file(vcf_file)
         file ref
         file sentieon_dnascope_model
         val sentieon_license
@@ -156,7 +175,7 @@ process model {
 
   
     output:
-        set val($sample_id), file("${sample_id}.dedup.model.vcf.gz") into model_vcf 
+        tuple val($sample_id), file("${sample_id}.dedup.model.vcf.gz"), emit: model_vcf 
 
     script:
         """
