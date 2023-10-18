@@ -4,8 +4,8 @@ nextflow.enable.dsl=2
 
 // Get params
 
-ref = Channel.fromPath(params.ref).toList()
-dbsnp = Channel.fromPath(params.dbsnp).toList()
+ref = file(params.ref, type: 'file')
+dbsnp = file(params.dbsnp, type: 'file') 
 sentieon_license = params.sentieon_license
 sentieon_libjemalloc = params.sentieon_libjemalloc
 sentieon_bam_option = params.sentieon_bam_option
@@ -23,7 +23,7 @@ process align {
 
     input:
         tuple val(sample_id), path(fastq_r1_file), path(fastq_r2_file), val(flowcell), val(lane)
-        file ref
+        //file ref
         val sentieon_license
         val sentieon_libjemalloc
         val sentieon_bam_option
@@ -45,6 +45,7 @@ process align {
         export SENTIEON_LICENSE=${sentieon_license}
         export LD_PRELOAD=${sentieon_libjemalloc}        
         sentieon bwa mem \
+        -M \
         -R \"${readgroup_info}\" \
         -t ${sentieon_threads}  \
         -K 100000000 \
@@ -64,7 +65,7 @@ process align {
 }
 
 process locus_collector {
-    tag { "${params.project_name}.${params.protocol}.locus_collector" }
+    tag { "${params.project_name}.${sample_id}.locus_collector" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
     label 'sentieon'
 
@@ -75,7 +76,7 @@ process locus_collector {
         val sentieon_threads
   
     output:
-        tuple val(sample_id), file("${sample_id}.score.txt"), emit: score_info
+        tuple val(sample_id), file("${sample_id}.score.txt"), file("${sample_id}.score.txt.idx"), emit: score_info
 
     script:
         """
@@ -90,18 +91,19 @@ process locus_collector {
 }
 
 process dedup {
-    tag { "${params.project_name}.${params.protocol}.dedup" }
+    tag { "${params.project_name}.${sample_id}.dedup" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
     label 'sentieon'
 
     input:
-        tuple val(sample_id), file(bam_file), file(bam_file_index), file(score_info)
+        tuple val(sample_id), file(bam_file), file(bam_file_index), file(score_info), file(score_info_index)
+
         val sentieon_license
         val sentieon_libjemalloc
         val sentieon_threads
   
     output:
-        tuple val("$sample_id"), file("${sample_id}.dedup.bam"), emit: dedup_bam 
+        tuple val("$sample_id"), file("${sample_id}.dedup.bam"), file("${sample_id}.dedup.bam.bai"), emit: dedup_bam 
 
     script:
         """
@@ -118,15 +120,13 @@ process dedup {
         """ 
 }
 
-process call {
-    tag { "${params.project_name}.${params.protocol}.call" }
+process call_variants {
+    tag { "${params.project_name}.${sample_id}.call" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
     label 'sentieon'
 
     input:
-    tuple val(sample_id), file(bam_file)
-    file ref
-    file dbsnp
+    tuple val(sample_id), file(bam_file), file(bam_file_index)
     file sentieon_dnascope_model
     val sentieon_license
     val sentieon_libjemalloc
@@ -134,7 +134,7 @@ process call {
     val pcr_free
   
     output:
-    tuple val($sample_id), file("${sample_id}.dedup.vcf.gz"), emit: call_vcf 
+    tuple val("$sample_id"), file("${sample_id}.dedup.vcf.gz"), file("${sample_id}.dedup.vcf.gz.tbi"), emit: call_vcf 
 
     script:
         """
@@ -165,9 +165,10 @@ process call {
 }
 
 process model {
+    tag { "${params.project_name}.${sample_id}.model" }
+    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
     input:
-        tuple val(sample_id), file(vcf_file)
-        file ref
+        tuple val(sample_id), file(vcf_file), file(vcf_file_index)
         file sentieon_dnascope_model
         val sentieon_license
         val sentieon_libjemalloc
@@ -175,7 +176,7 @@ process model {
 
   
     output:
-        tuple val($sample_id), file("${sample_id}.dedup.model.vcf.gz"), emit: model_vcf 
+        tuple val("$sample_id"), file("${sample_id}.dedup.model.vcf.gz"), emit: model_vcf 
 
     script:
         """
@@ -184,11 +185,10 @@ process model {
         
         sentieon driver \
         -t ${sentieon_threads} \
-        -i ${bam_file} \
         -r ${ref} \
         --algo DNAModelApply \
         --model ${sentieon_dnascope_model} \
-        -v ${vcf_file}
+        -v ${vcf_file} \
         ${sample_id}.dedup.model.vcf.gz       
         """ 
 }
