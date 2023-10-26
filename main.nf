@@ -8,7 +8,7 @@ include { align; locus_collector; dedup } from './modules/general/main.nf'
 include { dnascope_call_variants; dnascope_model; dnascope_genotype_gvcfs  } from './modules/dnascope/main.nf'
 
 // dnaseq
-include { dnaseq_get_metrics; dnaseq_bqsr_table; dnaseq_bqsr_bam; dnaseq_call_variants } from './modules/dnaseq/main.nf'
+include { dnaseq_get_metrics; dnaseq_bqsr_table; dnaseq_bqsr_bam; dnaseq_call_variants; dnaseq_genotype_gvcfs; dna_seq_vqsr_snps; dna_seq_vqsr_indels } from './modules/dnaseq/main.nf'
 
 // Get params
 workflow = params.workflow
@@ -45,7 +45,6 @@ if (workflow == 'dnascope-align-call' || params.workflow == 'dnaseq-align-call' 
 
  if (workflow == 'dnascope-genotype-gvcfs' || workflow == 'dnaseq-genotype-gvcfs'){
     gvcf_list = Channel.fromPath(params.gvcf_list).toList()
-    gvcf_list.view()
  }
 
 workflow dnascope_align_call {
@@ -82,6 +81,16 @@ workflow dnascope_gg {
         dnascope_model(dnascope_genotype_gvcfs.out.vcf,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_bam_option,sentieon_threads)       
 }
 
+workflow dnaseq_gg {
+    take:
+        gvcf_list
+
+    main:
+        dnaseq_genotype_gvcfs(gvcf_list,sentieon_license,sentieon_libjemalloc,sentieon_bam_option,sentieon_threads)
+        dna_seq_vqsr_snps(dnaseq_genotype_gvcfs.out.vcf,sentieon_license,sentieon_libjemalloc,sentieon_threads)       
+        dna_seq_vqsr_indels(dna_seq_vqsr_snps.out.snps_vcf,sentieon_license,sentieon_libjemalloc,sentieon_threads)       
+}
+
 workflow {
     switch (workflow) {
             
@@ -95,6 +104,10 @@ workflow {
 
         case['dnascope-genotype-gvcfs']:
             dnascope_gg(gvcf_list)
+            break
+        
+        case['dnaseq-genotype-gvcfs']:
+            dnaseq_gg(gvcf_list)
             break
           
         
