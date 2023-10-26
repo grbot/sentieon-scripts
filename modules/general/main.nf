@@ -1,18 +1,13 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
-
 // Get params
-
 ref = file(params.ref, type: 'file')
 dbsnp = file(params.dbsnp, type: 'file') 
-sentieon_license = params.sentieon_license
-sentieon_libjemalloc = params.sentieon_libjemalloc
-sentieon_bam_option = params.sentieon_bam_option
-sentieon_threads = params.sentieon_threads
-sentieon_dnascope_model = params.sentieon_dnascope_model
-pcr_free = params.pcr_free
-
+known_indels_1 = file(params.known_indels_1, type: 'file')
+known_indels_2 = file(params.known_indels_2, type: 'file')
+call_conf = params.call_conf
+emit_conf = params.emit_conf
 
 process align {
     tag { "${params.project_name}.${sample_id}.align" }
@@ -64,8 +59,8 @@ process align {
         """ 
 }
 
-process locus_collector {
-    tag { "${params.project_name}.${sample_id}.locus_collector" }
+process get_metrics {
+    tag { "${params.project_name}.${sample_id}.get_metrics" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
     label 'sentieon'
 
@@ -76,19 +71,63 @@ process locus_collector {
         val sentieon_threads
   
     output:
-        tuple val(sample_id), file("${sample_id}.score.txt"), file("${sample_id}.score.txt.idx"), emit: score_info
+        tuple val(sample_id), file("${sample_id}.*.txt"), file("${sample_id}.*.pdf"), emit: metrics
 
     script:
         """
         export SENTIEON_LICENSE=${sentieon_license}
         export LD_PRELOAD=${sentieon_libjemalloc} 
+
+        sentieon driver \
+        -r $ref \
+        -t ${sentieon_threads} \
+        -i ${bam_file} \
+        --algo MeanQualityByCycle ${sample_id}.mq_metrics.txt \
+        --algo QualDistribution ${sample_id}.qd_metrics.txt \
+        --algo GCBias --summary ${sample_id}.gc_summary.txt ${sample_id}.gc_metrics.txt \
+        --algo AlignmentStat --adapter_seq '' ${sample_id}.aln_metrics.txt \
+        --algo InsertSizeMetricAlgo ${sample_id}.is_metrics.txt
+	
+	    sentieon plot GCBias \
+        -o ${sample_id}.gc-report.pdf ${sample_id}.gc_metrics.txt
+
+	    sentieon plot QualDistribution \
+        -o ${sample_id}.qd-report.pdf ${sample_id}.qd_metrics.txt
+	
+	    sentieon plot MeanQualityByCycle \
+        -o ${sample_id}.mq-report.pdf ${sample_id}.mq_metrics.txt
+
+	    sentieon plot InsertSizeMetricAlgo \
+        -o ${sample_id}.is-report.pdf ${sample_id}.is_metrics.txt
+        
+        """ 
+}
+
+process locus_collector { 
+    tag { "${params.project_name}.${sample_id}.locus_collector" } 
+    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false 
+    label 'sentieon' 
+ 
+    input: 
+        tuple val(sample_id), file(bam_file), file(bam_file_index) 
+        val sentieon_license 
+        val sentieon_libjemalloc 
+        val sentieon_threads 
+   
+    output: 
+        tuple val(sample_id), file("${sample_id}.score.txt"), file("${sample_id}.score.txt.idx"), emit: score_info 
+ 
+    script: 
+        """ 
+        export SENTIEON_LICENSE=${sentieon_license}
+        export LD_PRELOAD=${sentieon_libjemalloc}
         sentieon driver \
         -t ${sentieon_threads} \
         -i ${bam_file} \
         --algo LocusCollector \
-        --fun score_info ${sample_id}.score.txt
-        """ 
-}
+        --fun score_info ${sample_id}.score.txt 
+        """  
+} 
 
 process dedup {
     tag { "${params.project_name}.${sample_id}.dedup" }
@@ -119,77 +158,3 @@ process dedup {
         ${sample_id}.dedup.bam
         """ 
 }
-
-process call_variants {
-    tag { "${params.project_name}.${sample_id}.call" }
-    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
-    label 'sentieon'
-
-    input:
-    tuple val(sample_id), file(bam_file), file(bam_file_index)
-    file sentieon_dnascope_model
-    val sentieon_license
-    val sentieon_libjemalloc
-    val sentieon_threads
-    val pcr_free
-  
-    output:
-    tuple val("$sample_id"), file("${sample_id}.dedup.vcf.gz"), file("${sample_id}.dedup.vcf.gz.tbi"), emit: call_vcf 
-
-    script:
-        """
-        export SENTIEON_LICENSE=${sentieon_license}
-        export LD_PRELOAD=${sentieon_libjemalloc}
-        
-        if [ "${pcr_free}" = true ]; then
-            sentieon driver \
-            -t ${sentieon_threads} \
-            -i ${bam_file} \
-            -r ${ref} \
-            --algo DNAscope \
-            -d ${dbsnp} \
-            --pcr_indel_model none \
-            --model ${sentieon_dnascope_model} \
-            ${sample_id}.dedup.vcf.gz
-        else
-            sentieon driver \
-            -t ${sentieon_threads} \
-            -i ${bam_file} \
-            -r ${ref} \
-            --algo DNAscope \
-            -d ${dbsnp} \
-            --model ${sentieon_dnascope_model} \
-            ${sample_id}.dedup.vcf.gz
-        fi
-        """ 
-}
-
-process model {
-    tag { "${params.project_name}.${sample_id}.model" }
-    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
-    input:
-        tuple val(sample_id), file(vcf_file), file(vcf_file_index)
-        file sentieon_dnascope_model
-        val sentieon_license
-        val sentieon_libjemalloc
-        val sentieon_threads
-
-  
-    output:
-        tuple val("$sample_id"), file("${sample_id}.dedup.model.vcf.gz"), emit: model_vcf 
-
-    script:
-        """
-        export SENTIEON_LICENSE=${sentieon_license}
-        export LD_PRELOAD=${sentieon_libjemalloc}
-        
-        sentieon driver \
-        -t ${sentieon_threads} \
-        -r ${ref} \
-        --algo DNAModelApply \
-        --model ${sentieon_dnascope_model} \
-        -v ${vcf_file} \
-        ${sample_id}.dedup.model.vcf.gz       
-        """ 
-}
-
