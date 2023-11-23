@@ -11,7 +11,7 @@ emit_conf = params.emit_conf
 
 process align {
     tag { "${params.project_name}.${sample_id}.align" }
-    memory { 64.GB * task.attempt }
+    memory { 128.GB * task.attempt }
     cpus { "${sentieon_threads}" }
     publishDir "${params.out_dir}", mode: 'copy', overwrite: false
     label 'sentieon'

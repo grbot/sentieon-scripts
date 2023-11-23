@@ -51,6 +51,35 @@ process dnascope_call_variants {
         """ 
 }
 
+process dnascope_model {
+    tag { "${params.project_name}.dnascope_model" }
+    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    input:
+        tuple file(gvcf), file(gvcf_index)
+        file sentieon_dnascope_model
+        val sentieon_license
+        val sentieon_libjemalloc
+        val sentieon_threads
+  
+    output:
+        tuple file("${params.project_name}.dedup.model.gvcf.gz"), file("${params.project_name}.dedup.model.gvcf.gz.tbi"), emit: model_gvcf 
+
+    script:
+        """
+        export SENTIEON_LICENSE=${sentieon_license}
+        export LD_PRELOAD=${sentieon_libjemalloc}
+        
+        sentieon driver \
+        -t ${sentieon_threads} \
+        -r ${ref} \
+        --algo DNAModelApply \
+        --model ${sentieon_dnascope_model} \
+        -v ${gvcf} \
+        ${params.project_name}.dedup.model.gvcf.gz
+        """ 
+}
+
+
 process dnascope_genotype_gvcfs {
     tag { "${params.project_name}.dnascope_genotype_gvcfs" }
     memory { 64.GB * task.attempt }
@@ -81,31 +110,3 @@ process dnascope_genotype_gvcfs {
         """ 
 }
 
-process dnascope_model {
-    tag { "${params.project_name}.dnascope_model" }
-    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
-    input:
-        tuple file(vcf), file(vcf_index)
-        file sentieon_dnascope_model
-        val sentieon_license
-        val sentieon_libjemalloc
-        val sentieon_bam_option
-        val sentieon_threads
-  
-    output:
-        tuple file("${params.project_name}.vcf.gz"), file("${params.project_name}.vcf.gz.tbi"), emit: model_vcf 
-
-    script:
-        """
-        export SENTIEON_LICENSE=${sentieon_license}
-        export LD_PRELOAD=${sentieon_libjemalloc}
-        
-        sentieon driver \
-        -t ${sentieon_threads} \
-        -r ${ref} \
-        --algo DNAModelApply \
-        --model ${sentieon_dnascope_model} \
-        -v ${vcf} \
-        ${params.project_name}.dedup.model.vcf.gz
-        """ 
-}
