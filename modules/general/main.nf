@@ -18,14 +18,13 @@ process align {
 
     input:
         tuple val(sample_id), path(fastq_r1_file), path(fastq_r2_file), val(flowcell), val(lane)
-        //file ref
         val sentieon_license
         val sentieon_libjemalloc
         val sentieon_bam_option
         val sentieon_threads
 
     output:
-        tuple val("$sample_id"), file("${sample_id}.bam"), file("${sample_id}.bam.bai"), emit: raw_bam
+        tuple val("$sample_id"), file("${sample_id}.cram"), file("${sample_id}.cram.bai"), emit: raw_bam
 
     script:
         readgroup_info="@RG\\tID:$flowcell.$lane\\tLB:LIBA\\tSM:$sample_id\\tPL:Illumina"
@@ -51,11 +50,10 @@ process align {
         sentieon util sort \
         ${sentieon_bam_option} \
         -r ${ref} \
-        -o ${sample_id}.bam \
+        -o ${sample_id}.cram \
         -t ${sentieon_threads} \
         --sam2bam \
         -i -
-
         """ 
 }
 
@@ -123,6 +121,7 @@ process locus_collector {
         export LD_PRELOAD=${sentieon_libjemalloc}
         sentieon driver \
         -t ${sentieon_threads} \
+        -r ${ref} \
         -i ${bam_file} \
         --algo LocusCollector \
         --fun score_info ${sample_id}.score.txt 
@@ -142,7 +141,7 @@ process dedup {
         val sentieon_threads
   
     output:
-        tuple val("$sample_id"), file("${sample_id}.dedup.bam"), file("${sample_id}.dedup.bam.bai"), emit: dedup_bam 
+        tuple val("$sample_id"), file("${sample_id}.dedup.cram"), file("${sample_id}.dedup.cram.bai"), emit: dedup_bam 
 
     script:
         """
@@ -150,11 +149,12 @@ process dedup {
         export LD_PRELOAD=${sentieon_libjemalloc}
         sentieon driver \
         -t ${sentieon_threads} \
+        -r ${ref} \
         -i ${bam_file} \
         --algo Dedup \
         --rmdup \
         --score_info ${score_info} \
         --metrics ${sample_id}.dedup_metrics.txt \
-        ${sample_id}.dedup.bam
+        ${sample_id}.dedup.cram
         """ 
 }

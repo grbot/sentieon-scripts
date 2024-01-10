@@ -3,7 +3,57 @@ nextflow.enable.dsl=2
 
 // Get params
 ref = file(params.ref, type: 'file')
-dbsnp = file(params.dbsnp, type: 'file') 
+dbsnp = file(params.dbsnp, type: 'file')
+
+process dnascope_align {
+    tag { "${params.project_name}.${sample_id}.dnascope_align" }
+    memory { 128.GB * task.attempt }
+    cpus { "${sentieon_threads}" }
+    publishDir "${params.out_dir}", mode: 'copy', overwrite: false
+    label 'sentieon'
+
+    input:
+        tuple val(sample_id), path(fastq_r1_file), path(fastq_r2_file), val(flowcell), val(lane)
+        path sentieon_bwa_model
+        val sentieon_license
+        val sentieon_libjemalloc
+        val sentieon_bam_option
+        val sentieon_threads
+
+    output:
+        tuple val("$sample_id"), file("${sample_id}.cram"), file("${sample_id}.cram.bai"), emit: raw_bam
+
+    script:
+        readgroup_info="@RG\\tID:$flowcell.$lane\\tLB:LIBA\\tSM:$sample_id\\tPL:Illumina"
+
+        if(lane == "0") {
+            sample_id = "$sample_id"
+        } else {
+            sample_id = "$sample_id-${flowcell}.${lane}"
+        }
+                         
+        """   
+        export SENTIEON_LICENSE=${sentieon_license}
+        export LD_PRELOAD=${sentieon_libjemalloc}        
+        sentieon bwa mem \
+        -M \
+        -R \"${readgroup_info}\" \
+        -t ${sentieon_threads}  \
+        -x ${sentieon_bwa_model} \
+        -K 100000000 \
+        -Y \
+        ${ref} \
+        ${fastq_r1_file} \
+        ${fastq_r2_file} | \
+        sentieon util sort \
+        ${sentieon_bam_option} \
+        -r ${ref} \
+        -o ${sample_id}.cram \
+        -t ${sentieon_threads} \
+        --sam2bam \
+        -i -
+        """ 
+}
 
 process dnascope_call_variants {
     tag { "${params.project_name}.${sample_id}.dnascope_call" }
@@ -11,8 +61,8 @@ process dnascope_call_variants {
     label 'sentieon'
 
     input:
-    tuple val(sample_id), file(bam_file), file(bam_file_index)
-    file sentieon_dnascope_model
+    tuple val(sample_id), path(bam_file), path(bam_file_index)
+    path sentieon_dnascope_model
     val sentieon_license
     val sentieon_libjemalloc
     val sentieon_threads
@@ -52,17 +102,17 @@ process dnascope_call_variants {
 }
 
 process dnascope_model {
-    tag { "${params.project_name}.dnascope_model" }
+    tag { "${sample_id}.dnascope_model" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
     input:
-        tuple file(gvcf), file(gvcf_index)
+        tuple val(sample_id), file(gvcf), file(gvcf_index)
         file sentieon_dnascope_model
         val sentieon_license
         val sentieon_libjemalloc
         val sentieon_threads
   
     output:
-        tuple file("${params.project_name}.dedup.model.gvcf.gz"), file("${params.project_name}.dedup.model.gvcf.gz.tbi"), emit: model_gvcf 
+        tuple file("${sample_id}.dedup.model.gvcf.gz"), file("${sample_id}.dedup.model.gvcf.gz.tbi"), emit: model_gvcf 
 
     script:
         """
@@ -75,7 +125,7 @@ process dnascope_model {
         --algo DNAModelApply \
         --model ${sentieon_dnascope_model} \
         -v ${gvcf} \
-        ${params.project_name}.dedup.model.gvcf.gz
+        ${sample_id}.dedup.model.gvcf.gz
         """ 
 }
 
@@ -106,7 +156,7 @@ process dnascope_genotype_gvcfs {
         -t ${sentieon_threads} \
         -r ${ref} \
         --algo GVCFtyper \
-        ${params.project_name}.vcf.gz  -
+        ${params.project_name}.vcf.gz -
         """ 
 }
 
