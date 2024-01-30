@@ -56,7 +56,7 @@ if (workflow == 'dnascope-call' || params.workflow == 'dnaseq-call' ) {
                        "${row.gVCF}" ] }
         .set { samples }
     if (workflow == 'dnascope-call'){
-                samples.map { [ it[0], it[6], it[6].concat(".bai") ] }
+                samples.map { [ it[0], it[6], it[6].concat(".crai") ] }
             .set { samples_dnascope_call }            
     }
     if (workflow == 'dnaseq-call'){

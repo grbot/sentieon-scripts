@@ -24,7 +24,7 @@ process align {
         val sentieon_threads
 
     output:
-        tuple val("$sample_id"), file("${sample_id}.cram"), file("${sample_id}.cram.bai"), emit: raw_bam
+        tuple val("$sample_id"), file("${sample_id}.cram"), file("${sample_id}.cram.crai"), emit: raw_bam
 
     script:
         readgroup_info="@RG\\tID:$flowcell.$lane\\tLB:LIBA\\tSM:$sample_id\\tPL:Illumina"
