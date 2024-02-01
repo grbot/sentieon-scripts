@@ -60,6 +60,7 @@ process align {
 process get_metrics {
     tag { "${params.project_name}.${sample_id}.get_metrics" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:
@@ -103,7 +104,8 @@ process get_metrics {
 
 process locus_collector { 
     tag { "${params.project_name}.${sample_id}.locus_collector" } 
-    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false 
+    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon' 
  
     input: 
@@ -131,6 +133,7 @@ process locus_collector {
 process dedup {
     tag { "${params.project_name}.${sample_id}.dedup" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:

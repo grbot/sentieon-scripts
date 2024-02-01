@@ -58,6 +58,7 @@ process dnascope_align {
 process dnascope_call_variants {
     tag { "${params.project_name}.${sample_id}.dnascope_call" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:
@@ -104,6 +105,7 @@ process dnascope_call_variants {
 process dnascope_model {
     tag { "${sample_id}.dnascope_model" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     input:
         tuple val(sample_id), file(gvcf), file(gvcf_index)
         file sentieon_dnascope_model

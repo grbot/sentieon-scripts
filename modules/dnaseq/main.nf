@@ -18,6 +18,7 @@ max_gaussians = params.max_gaussians
 process dnaseq_get_metrics {
     tag { "${params.project_name}.${sample_id}.dnaseq_get_metrics" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:
@@ -62,6 +63,7 @@ process dnaseq_get_metrics {
 process dnaseq_bqsr_table {
     tag { "${params.project_name}.${sample_id}.dnaseq_bqsr-table" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:
@@ -91,6 +93,7 @@ process dnaseq_bqsr_table {
 process dnaseq_bqsr_bam {
     tag { "${params.project_name}.${sample_id}.dnaseq_bqsr-bam" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:
@@ -120,6 +123,7 @@ process dnaseq_bqsr_bam {
 process dnaseq_call_variants {
     tag { "${params.project_name}.${sample_id}.dnaseq_call" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:
@@ -181,6 +185,7 @@ process dnaseq_genotype_gvcfs {
 process dna_seq_vqsr_snps {
     tag { "${params.project_name}.dna_seq_vqsr_snps" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:
@@ -247,6 +252,7 @@ process dna_seq_vqsr_snps {
 process dna_seq_vqsr_indels {
     tag { "${params.project_name}.dna_seq_vqsr_indels" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
     label 'sentieon'
 
     input:
