@@ -5,7 +5,6 @@ nextflow.enable.dsl=2
 ref = file(params.ref, type: 'file')
 dbsnp = file(params.dbsnp, type: 'file') 
 known_indels_1 = file(params.known_indels_1, type: 'file')
-known_indels_2 = file(params.known_indels_2, type: 'file')
 mills = file(params.mills, type: 'file')
 omni = file(params.omni, type: 'file')
 hapmap = file(params.hapmap, type: 'file')
@@ -85,7 +84,7 @@ process dnaseq_bqsr_table {
         -t ${sentieon_threads} \
         -i ${bam_file} \
         --algo QualCal \
-        -k ${dbsnp} -k ${known_indels_1} -k ${known_indels_2} \
+        -k ${dbsnp} -k ${known_indels_1} \
         ${sample_id}.dedup.bqsr.table
        """ 
 }

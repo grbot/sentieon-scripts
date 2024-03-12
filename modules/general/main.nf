@@ -4,8 +4,6 @@ nextflow.enable.dsl=2
 // Get params
 ref = file(params.ref, type: 'file')
 dbsnp = file(params.dbsnp, type: 'file') 
-known_indels_1 = file(params.known_indels_1, type: 'file')
-known_indels_2 = file(params.known_indels_2, type: 'file')
 call_conf = params.call_conf
 emit_conf = params.emit_conf
 
