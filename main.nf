@@ -2,10 +2,10 @@
 nextflow.enable.dsl=2
 
 // For general use
-include { align; locus_collector; dedup } from './modules/general/main.nf'
+include { align; locus_collector; dedup; cram_to_bam } from './modules/general/main.nf'
 
 // dnascope
-include { dnascope_align; dnascope_call_variants; dnascope_model; dnascope_genotype_gvcfs  } from './modules/dnascope/main.nf'
+include { dnascope_align; dnascope_call_variants; dnascope_model; dnascope_genotype_gvcfs; dnascope_model_cnv; dnascope_call_cnv  } from './modules/dnascope/main.nf'
 
 // dnaseq
 include { dnaseq_get_metrics; dnaseq_bqsr_table; dnaseq_bqsr_bam; dnaseq_call_variants; dnaseq_genotype_gvcfs; dna_seq_vqsr_snps; dna_seq_vqsr_indels } from './modules/dnaseq/main.nf'
@@ -18,6 +18,7 @@ sentieon_bam_option = params.sentieon_bam_option
 sentieon_threads = params.sentieon_threads
 sentieon_bwa_model = file(params.sentieon_bwa_model, type: 'file')
 sentieon_dnascope_model = file(params.sentieon_dnascope_model, type: 'file')
+sentieon_dnascope_cnv_model = file(params.sentieon_dnascope_cnv_model, type: 'file')
 
 pcr_free = params.pcr_free
 
@@ -84,8 +85,12 @@ workflow dnascope_align_call {
         locus_collector(dnascope_align.out.raw_bam,sentieon_license,sentieon_libjemalloc,sentieon_threads)
         dedup(dnascope_align.out.raw_bam.join(locus_collector.out.score_info),sentieon_license,sentieon_libjemalloc,sentieon_threads)
         dnascope_call_variants(dedup.out.dedup_bam,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_threads,pcr_free)
-        dnascope_model(dnascope_call_variants.out.call_vcf,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)       
+        dnascope_model(dnascope_call_variants.out.call_vcf,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)
+        cram_to_bam(dedup.out.dedup_bam, sentieon_threads)
+        dnascope_model_cnv(cram_to_bam.out.bam,sentieon_dnascope_cnv_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)     
+        dnascope_call_cnv(dnascope_model_cnv.out.model_cnv,cram_to_bam.out.bam,sentieon_dnascope_cnv_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)
 }
+
 
 workflow dnaseq_align_call {
     take:

@@ -142,7 +142,7 @@ process dedup {
         val sentieon_threads
   
     output:
-        tuple val("$sample_id"), file("${sample_id}.dedup.cram"), file("${sample_id}.dedup.cram.bai"), emit: dedup_bam 
+        tuple val("$sample_id"), file("${sample_id}.dedup.cram"), file("${sample_id}.dedup.cram.crai"), emit: dedup_bam 
 
     script:
         """
@@ -157,5 +157,35 @@ process dedup {
         --score_info ${score_info} \
         --metrics ${sample_id}.dedup_metrics.txt \
         ${sample_id}.dedup.cram
+        """ 
+}
+
+process cram_to_bam {
+    tag { "${params.project_name}.${sample_id}.cram_to_bam" }
+    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
+    label 'samtools'
+
+    input:
+        tuple val(sample_id), file(cram_file), file(cram_file_index)
+        val sentieon_threads
+
+    output:
+        tuple val("$sample_id"), file("${bam_file}"), file("${bam_file_index}"), emit: bam 
+
+    script:
+        bam_file = cram_file.getName().replaceFirst(/\.[^.]+$/, ".bam")  //
+        bam_file_index = cram_file.getName().replaceFirst(/\.[^.]+$/, ".bam.bai")  //
+        """
+        samtools \
+        view \
+        -o ${bam_file} \
+        -@ ${sentieon_threads} \
+        ${cram_file}
+
+        samtools \
+        index \
+        -@ ${sentieon_threads} \
+        ${bam_file}
         """ 
 }

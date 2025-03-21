@@ -131,7 +131,6 @@ process dnascope_model {
         """ 
 }
 
-
 process dnascope_genotype_gvcfs {
     tag { "${params.project_name}.dnascope_genotype_gvcfs" }
     memory { 64.GB * task.attempt }
@@ -159,6 +158,70 @@ process dnascope_genotype_gvcfs {
         -r ${ref} \
         --algo GVCFtyper \
         ${params.project_name}.vcf.gz -
+        """ 
+}
+
+process dnascope_model_cnv {
+    tag { "${params.project_name}.${sample_id}.dnascope_model_cnv" }
+    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
+    label 'sentieon'
+
+    input:
+    tuple val(sample_id), path(bam_file), path(bam_file_index)
+    path sentieon_dnascope_cnv_model
+    val sentieon_license
+    val sentieon_libjemalloc
+    val sentieon_threads
+  
+    output:
+    tuple val("$sample_id"), file("${sample_id}.cnv.tmp.vcf.gz"), file("${sample_id}.cnv.tmp.vcf.gz.tbi"), emit: model_cnv 
+
+    script:
+        """
+        export SENTIEON_LICENSE=${sentieon_license}
+        export LD_PRELOAD=${sentieon_libjemalloc}
+               
+        sentieon driver \
+        -t ${sentieon_threads} \
+        -i ${bam_file} \
+        -r ${ref} \
+        --algo CNVscope \
+        --model ${sentieon_dnascope_cnv_model} \
+        ${sample_id}.cnv.tmp.vcf.gz
+        """ 
+}
+
+process dnascope_call_cnv {
+    tag { "${params.project_name}.${sample_id}.dnascope_call_cnv" }
+    publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
+    cpus { "${sentieon_threads}" }
+    label 'sentieon'
+
+    input:
+    tuple val(sample_id), path(vcf_file), path(vcf_file_index)
+    tuple val(sample_id), path(bam_file), path(bam_file_index)
+    path sentieon_dnascope_cnv_model
+    val sentieon_license
+    val sentieon_libjemalloc
+    val sentieon_threads
+  
+    output:
+    tuple val("$sample_id"), file("${sample_id}.cnv.vcf.gz"), file("${sample_id}.cnv.vcf.gz.tbi"), emit: call_cnv 
+
+    script:
+        """
+        export SENTIEON_LICENSE=${sentieon_license}
+        export LD_PRELOAD=${sentieon_libjemalloc}
+               
+        sentieon driver \
+        -t ${sentieon_threads} \
+        -i ${bam_file} \
+        -r ${ref} \
+        --algo CNVModelApply \
+        --model ${sentieon_dnascope_cnv_model} \
+        -v ${vcf_file} \
+        ${sample_id}.cnv.vcf.gz
         """ 
 }
 
