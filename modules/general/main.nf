@@ -179,6 +179,7 @@ process cram_to_bam {
         """
         samtools \
         view \
+        -T ${ref} \
         -o ${bam_file} \
         -@ ${sentieon_threads} \
         ${cram_file}

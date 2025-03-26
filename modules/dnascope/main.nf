@@ -196,6 +196,7 @@ process dnascope_call_cnv {
     tag { "${params.project_name}.${sample_id}.dnascope_call_cnv" }
     publishDir "${params.out_dir}/", mode: 'copy', overwrite: false
     cpus { "${sentieon_threads}" }
+    memory { 128.GB * task.attempt }
     label 'sentieon'
 
     input:

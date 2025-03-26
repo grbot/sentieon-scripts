@@ -19,7 +19,6 @@ sentieon_threads = params.sentieon_threads
 sentieon_bwa_model = file(params.sentieon_bwa_model, type: 'file')
 sentieon_dnascope_model = file(params.sentieon_dnascope_model, type: 'file')
 sentieon_dnascope_cnv_model = file(params.sentieon_dnascope_cnv_model, type: 'file')
-
 pcr_free = params.pcr_free
 
 if (workflow == 'dnascope-align-call' || params.workflow == 'dnaseq-align-call' ) {
@@ -44,7 +43,7 @@ if (workflow == 'dnascope-align-call' || params.workflow == 'dnaseq-align-call' 
     }  
 }
 
-if (workflow == 'dnascope-call' || params.workflow == 'dnaseq-call' ) {
+if (workflow == 'dnascope-call' || params.workflow == 'dnaseq-call' || params.workflow == 'dnascope-call-cnv' ) {
     Channel.fromPath(params.sample_sheet)
         .splitCsv(header: true, sep: '\t')
         .map { row -> [ "${row.SampleID}",
@@ -61,9 +60,19 @@ if (workflow == 'dnascope-call' || params.workflow == 'dnaseq-call' ) {
 		    if(it[6].endsWith('cram')){
                       return [ it[0], it[6], it[6].concat(".crai") ]
 		    }  else if (it[6].endsWith('bam')){
-                     return [ it[0], it[6], it[6].concat(".bai") ]
+                      return [ it[0], it[6], it[6].concat(".bai") ]
                     }
 	          }
+            .set { samples_dnascope_call }
+    }
+    if (workflow == 'dnascope-call-cnv'){
+                  samples.map { 
+		    if(it[6].endsWith('cram')){
+                      return [ it[0], it[6], it[6].concat(".crai") ]
+		    }  else if (it[6].endsWith('bam')){
+                      return [ it[0], it[6], it[6].concat(".bai") ]
+                }
+	        }
             .set { samples_dnascope_call }
     }
     if (workflow == 'dnaseq-call'){
@@ -86,11 +95,9 @@ workflow dnascope_align_call {
         dedup(dnascope_align.out.raw_bam.join(locus_collector.out.score_info),sentieon_license,sentieon_libjemalloc,sentieon_threads)
         dnascope_call_variants(dedup.out.dedup_bam,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_threads,pcr_free)
         dnascope_model(dnascope_call_variants.out.call_vcf,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)
-        cram_to_bam(dedup.out.dedup_bam, sentieon_threads)
-        dnascope_model_cnv(cram_to_bam.out.bam,sentieon_dnascope_cnv_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)     
-        dnascope_call_cnv(dnascope_model_cnv.out.model_cnv,cram_to_bam.out.bam,sentieon_dnascope_cnv_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)
+        dnascope_model_cnv(dedup.out.dedup_bam,sentieon_dnascope_cnv_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)     
+        dnascope_call_cnv(dnascope_model_cnv.out.model_cnv,dedup.out.dedup_bam,sentieon_dnascope_cnv_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)
 }
-
 
 workflow dnaseq_align_call {
     take:
@@ -112,8 +119,18 @@ workflow dnascope_call {
 
     main:
         dnascope_call_variants(samples,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_threads,pcr_free)
-        dnascope_model(dnascope_call_variants.out.call_vcf,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)       
+        dnascope_model(dnascope_call_variants.out.call_vcf,sentieon_dnascope_model,sentieon_license,sentieon_libjemalloc,sentieon_threads)    
 }
+
+workflow dnascope_cnv {
+    take:
+        samples
+
+    main:
+       dnascope_model_cnv(samples, sentieon_dnascope_cnv_model, sentieon_license, sentieon_libjemalloc, sentieon_threads)
+       dnascope_call_cnv(dnascope_model_cnv.out.model_cnv, samples, sentieon_dnascope_cnv_model, sentieon_license, sentieon_libjemalloc, sentieon_threads)
+}
+
 
 workflow dnaseq_call {
     take:
@@ -154,6 +171,10 @@ workflow {
 
         case['dnascope-call']:
             dnascope_call(samples_dnascope_call)
+            break
+
+        case['dnascope-call-cnv']:
+            dnascope_cnv(samples_dnascope_call)
             break
 
         case['dnascope-genotype-gvcfs']:
